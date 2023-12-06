@@ -5,11 +5,11 @@
 
   .appContainer{
     width: 100%;
-    padding: 0px;
+    padding: 0 0 10px 0;
     margin: 0px;
     max-width: 100%;
     background-image: url('Christmas.jpg');
-    height: 5000px
+    min-height: 100vh;
   }
 }
 
