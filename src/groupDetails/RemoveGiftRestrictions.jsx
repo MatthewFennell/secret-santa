@@ -9,9 +9,12 @@ import styles from './RemoveGiftRestrictions.module.scss';
 
 const doArraysContainSameElements = (arr, arrTwo) => _.xor(arr, arrTwo).length === 0;
 
-const getRemainingRestrictions = (giftRestrictions,
-    removedRestrictions) => Object.values(giftRestrictions)
-    .filter(x => !removedRestrictions.some(y => doArraysContainSameElements(x, y)));
+const getRemainingRestrictions = (giftRestrictions, removedRestrictions) =>
+    Object
+        .values(giftRestrictions)
+        .filter(x => {
+            return !removedRestrictions.some(y => x.isOneWay === y.isOneWay && doArraysContainSameElements(x.people, y.people))
+        });
 
 const RemoveGiftRestrictions = props => {
     const remainingResults = getRemainingRestrictions(props.giftRestrictions,
@@ -29,21 +32,26 @@ const RemoveGiftRestrictions = props => {
                         There are no more gift restrictions to remove
                     </div>
                 )}
-                {remainingResults.map((x, index) => (
-                    <div className={styles.rowWrapper} key={x.toString()}>
+                {remainingResults.map((restriction, index) => (
+                    <div className={styles.rowWrapper} key={restriction.people.toString()}>
                         <div
                             className={classNames({
                                 [styles.removeGiftRestrictionRow]: true,
                                 [styles[`color-${index % 4}`]]: true
                             })}
                         >
-                            {x.map(name => mapIdToName(name, props.displayNameMappings)).join(', ')}
+                            {
+                                restriction
+                                    .people
+                                    .map(name => mapIdToName(name, props.displayNameMappings))
+                                    .join(restriction.isOneWay ? ' buying for: ' : ', ')
+                            }
                         </div>
                         <div className={styles.removeButton}>
                             <CancelIcon
                                 fontSize="large"
                                 color="secondary"
-                                onClick={() => props.onRemoveRestriction(x)}
+                                onClick={() => props.onRemoveRestriction(restriction)}
                             />
                         </div>
                     </div>

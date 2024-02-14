@@ -1,5 +1,4 @@
 const functions = require('firebase-functions');
-const admin = require('firebase-admin');
 const moment = require('moment');
 const _ = require('lodash');
 const fp = require('lodash/fp');
@@ -13,27 +12,31 @@ module.exports.isAuthenticated = context => {
 
 module.exports.isNumber = value => Boolean((Number(value) && value) >= 0 || Number(value) === 0);
 
-module.exports.doArraysContainSameElements = (arr,    arrTwo) => _.xor(arr, arrTwo).length === 0;
+module.exports.doArraysContainSameElements = (arr, arrTwo) => _.xor(arr, arrTwo).length === 0;
 
-const findPeopleInMyRestriction = (person, restrictions) => Object.values(restrictions).reduce((acc, cur) => {
-    if (cur.includes(person)) {
-        return _.uniq([...acc, ...cur]);
-    }
-    return acc;
-}, [person]);
+const calculateMyRestriction = (person, restrictions) =>
+    restrictions.reduce((acc, cur) => {
+        if (cur.isOneWay) {
+            // cur.people[0] can't buy for cur.people[1],
+            // but vice-versa is fine
+            if (cur.people[0] === person) {
+                return [...acc, cur.people[1]];
+            }
+        } else {
+            if (cur.people.includes(person)) {
+                return _.uniq([...acc, ...cur.people]);
+            }
+        }
+        return acc;
+    }, [person]);
 
-module.exports.findPeopleInMyRestriction = findPeopleInMyRestriction;
 
-const generateReceivers = (restrictions, participants) => {
-    const result = [];
-    participants.forEach(person => {
-        const restricted = findPeopleInMyRestriction(person, restrictions);
-        result.push(participants.filter(x => !restricted.includes(x)));
+const generateReceivers = (restrictions, participants) =>
+    participants.map(person => {
+        const restricted = calculateMyRestriction(person, restrictions);
+
+        return participants.filter(x => !restricted.includes(x));
     });
-    return result;
-};
-
-module.exports.generateReceivers = generateReceivers;
 
 // // https://pastebin.com/a7yCDf95
 module.exports.generatePairings = (restrictions, participants) => {

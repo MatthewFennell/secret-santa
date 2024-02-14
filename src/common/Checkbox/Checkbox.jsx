@@ -8,12 +8,14 @@ const Checkbox = props => (
     <MaterialCheckbox
         className={props.styles[props.color]}
         checked={props.checked}
+        disabled={props.disabled}
         onClick={props.onClick}
     />
 );
 
 Checkbox.defaultProps = {
     checked: false,
+    disabled: false,
     color: 'blue',
     onClick: noop,
     styles: defaultStyles
@@ -21,6 +23,7 @@ Checkbox.defaultProps = {
 
 Checkbox.propTypes = {
     checked: PropTypes.bool,
+    disabled: PropTypes.bool,
     color: PropTypes.string,
     onClick: PropTypes.func,
     styles: PropTypes.objectOf(PropTypes.string)

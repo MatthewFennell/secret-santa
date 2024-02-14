@@ -1,6 +1,45 @@
-# Getting Started with Create React App
+# Fennell Secret Santa
+
+A secret santa app using firebase.
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+
+## Requirements
+
+node version `14.18.0` (can be installed with `nvm`)
+
+## Quick Start
+
+Populate `.env` with the below properties:
+
+```sh
+REACT_APP_API_KEY=...
+REACT_APP_PROJECT_ID=...
+REACT_APP_STORAGE_BUCKET=...
+REACT_APP_MESSAGING_SENDER_ID=...
+REACT_APP_APP_ID=...
+REACT_APP_MEASUREMENT_ID=...
+REACT_APP_AUTH_DOMAIN=...
+REACT_APP_DATABASE_URL=...
+```
+
+Deploy UI to a test channel:
+
+```sh
+npx firebase hosting:channel:deploy test1
+```
+
+Deploy the app (overwriting live):
+
+```sh
+npm run firebase deploy
+```
+
+Deploy just functions:
+
+```sh
+npm run firebase deploy --only functions:groups-addGiftRestriction,functions:groups-removeGiftRestrictions,...
+```
 
 ## Available Scripts
 

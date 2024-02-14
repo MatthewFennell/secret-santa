@@ -8,6 +8,16 @@ const db = admin.firestore();
 
 const operations = admin.firestore.FieldValue;
 
+const objectToArray = obj => {
+    const last = Object.keys(obj).sort().pop();
+    return Array.from({ ...obj, length: last + 1 });
+};
+
+const restrictionsObjToArray = restrictions => objectToArray(restrictions).filter(x=>x);
+
+const isSameRestriction = ({ people: aPeople, isOneWay: aOneWay }, { people: bPeople, isOneWay: bOneWay }) =>
+    aOneWay === bOneWay && common.doArraysContainSameElements(aPeople, bPeople);
+
 exports.createGroup = functions
     .region(constants.region)
     .https.onCall((data, context) => {
@@ -115,19 +125,24 @@ exports.joinGroup = functions
 
 exports.addGiftRestriction = functions
     .region(constants.region)
-    .https.onCall((data, context) => {
+    .https.onCall((newData, context) => {
         common.isAuthenticated(context);
 
-        if (!data.restriction || data.restriction.length < 2) {
+        // newData.restriction: { people: string[], isOneWay: boolean }
+
+        if (_.get(newData, 'restriction.people', []).length < 2) {
             throw new functions.https.HttpsError('invalid-argument', 'Must provide a valid number of restrictions');
         }
 
-        if (!data.groupId) {
+        if (!newData.groupId) {
             throw new functions.https.HttpsError('invalid-argument', 'Must provide a group id. Contact Matt');
         }
 
-        return db.collection('groups').doc(data.groupId).get().then(doc => {
-            if (Object.keys(doc.data().restrictions).length >= 10) {
+        return db.collection('groups').doc(newData.groupId).get().then(doc => {
+            const { restrictions } = doc.data();
+            const restrictionsArray = restrictionsObjToArray(restrictions);
+
+            if (restrictionsArray.length >= 10) {
                 throw new functions.https.HttpsError('invalid-argument', 'Max of 10 restrictions');
             }
 
@@ -135,16 +150,13 @@ exports.addGiftRestriction = functions
                 throw new functions.https.HttpsError('unauthenticated', 'Only the group owner can add restrictions');
             }
 
-            if (Object.values(doc.data().restrictions)
-                .some(r => common.doArraysContainSameElements(r,
-                    data.restriction))) {
+            if (restrictionsArray.some(r => isSameRestriction(r, newData.restriction))) {
                 throw new functions.https.HttpsError('invalid-argument', 'Cannot add duplicate group restrictions');
             }
 
             let minKey = 0;
-
             for (let x = 0; x < constants.maxGiftRestrictionGroups; x += 1) {
-                if (!(x in doc.data().restrictions)) {
+                if (!(x in restrictions)) {
                     minKey = x;
                     break;
                 }
@@ -152,8 +164,8 @@ exports.addGiftRestriction = functions
 
             return doc.ref.update({
                 restrictions: {
-                    ...doc.data().restrictions,
-                    [minKey]: data.restriction
+                    ...restrictions,
+                    [minKey]: newData.restriction
                 }
             });
         });
@@ -173,13 +185,18 @@ exports.removeGiftRestrictions = functions
         }
 
         return db.collection('groups').doc(data.groupId).get().then(doc => {
-            const getRemovedResult = (restrictions, removed) => Object.keys(restrictions)
-                .reduce((acc, cur) => (removed.some(x => common.doArraysContainSameElements(x,
-                    restrictions[cur]))
-                    ? acc : {
-                        ...acc,
-                        [cur]: restrictions[cur]
-                    }), {});
+            const getRemovedResult = (restrictions, removed) => Object
+                .keys(restrictions)
+                .reduce((acc, curKey) => {
+                    const curRestriction = restrictions[curKey];
+
+                    return removed.some(removedEntry => isSameRestriction(removedEntry, curRestriction))
+                        ? acc
+                        : {
+                            ...acc,
+                            [curKey]: curRestriction
+                        }
+                }, {});
 
             return doc.ref.update({
                 restrictions: getRemovedResult(doc.data().restrictions, data.restrictions)
@@ -207,7 +224,8 @@ exports.assignPairings = functions
 
             const { restrictions, participants } = doc.data();
 
-            const pairings = common.generatePairings(restrictions, participants);
+            const restrictionsArray = restrictionsObjToArray(restrictions);
+            const pairings = common.generatePairings(restrictionsArray, participants);
 
             return doc.ref.update({
                 pairings,
@@ -303,22 +321,30 @@ exports.kickUser = functions
                 throw new functions.https.HttpsError('invalid-argument', 'Cannot kick users once pairings have been assigned');
             }
 
-            const restrictions = Object.keys(doc.data().restrictions).reduce((acc, cur) => {
-                const filtered = doc.data().restrictions[cur].filter(x => x !== data.userId);
-                if (filtered.length > 1) {
-                    return {
-                        ...acc,
-                        [cur]: filtered
-                    };
-                }
-                return acc;
-            }, {});
+            const restrictions = doc.data().restrictions;
+            const newRestrictions = Object
+                .keys(restrictions)
+                .filter(cur => restrictions[cur])
+                .reduce((acc, cur) => {
+                    const { people, isOneWay } = restrictions[cur];
+                    const filtered = people.filter(x => x !== data.userId);
+                    if (filtered.length > 1) {
+                        return {
+                            ...acc,
+                            [cur]: {
+                                people: filtered,
+                                isOneWay,
+                            }
+                        };
+                    }
+                    return acc;
+                }, {});
 
             return doc.ref.update({
                 addressMappings: _.omit(doc.data().addressMappings, data.userId),
                 displayNameMappings: _.omit(doc.data().displayNameMappings, data.userId),
                 participants: operations.arrayRemove(data.userId),
-                restrictions,
+                restrictions: newRestrictions,
                 wishlist: _.omit(doc.data().wishlist, data.userId)
             });
         });
